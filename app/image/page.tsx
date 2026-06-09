@@ -19,6 +19,7 @@ export default function ImagePage() {
   const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [style, setStyle] = useState("realistic");
   const [size, setSize] = useState("1024x1024");
+  const [imageLoading, setImageLoading] = useState(false);
 
   const styles = [
     { id: "realistic", name: "واقعي", emoji: "📸" },
@@ -49,10 +50,11 @@ export default function ImagePage() {
     return `${prompt}, ${stylePrompts[style]}`;
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!prompt.trim() || isLoading) return;
 
     setIsLoading(true);
+    setImageLoading(true);
 
     try {
       const fullPrompt = buildPrompt();
@@ -62,15 +64,7 @@ export default function ImagePage() {
       // Pollinations AI URL
       const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
         fullPrompt
-      )}?width=${width}&height=${height}&seed=${seed}&nologo=true&enhance=true`;
-
-      // نتحقق إن الصورة تحملت
-      await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = imageUrl;
-      });
+      )}?width=${width}&height=${height}&seed=${seed}&nologo=true&enhance=true&model=flux`;
 
       const newImage: GeneratedImage = {
         id: Date.now().toString(),
@@ -82,17 +76,31 @@ export default function ImagePage() {
       setCurrentImage(newImage);
       setHistory((prev) => [newImage, ...prev].slice(0, 12));
       
-      toast.success("🎨 تم إنشاء الصورة!");
+      toast.success("🎨 جاري إنشاء الصورة...");
     } catch (error) {
       toast.error("حدث خطأ، حاول مرة أخرى");
       console.error(error);
-    } finally {
       setIsLoading(false);
+      setImageLoading(false);
     }
+  };
+
+  const handleImageLoad = () => {
+    setIsLoading(false);
+    setImageLoading(false);
+    toast.success("✨ تم إنشاء الصورة!");
+  };
+
+  const handleImageError = () => {
+    setIsLoading(false);
+    setImageLoading(false);
+    toast.error("فشل تحميل الصورة، حاول مرة أخرى");
   };
 
   const handleDownload = async (image: GeneratedImage) => {
     try {
+      toast.loading("جاري التحميل...", { id: "download" });
+      
       const response = await fetch(image.url);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -103,9 +111,10 @@ export default function ImagePage() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      toast.success("📥 تم تحميل الصورة!");
+      
+      toast.success("📥 تم تحميل الصورة!", { id: "download" });
     } catch (error) {
-      toast.error("فشل التحميل");
+      toast.error("فشل التحميل", { id: "download" });
     }
   };
 
@@ -240,11 +249,21 @@ export default function ImagePage() {
               </div>
             </div>
 
-            <div className="relative rounded-xl overflow-hidden bg-gray-900">
+            <div className="relative rounded-xl overflow-hidden bg-gray-900 min-h-[400px] flex items-center justify-center">
+              {imageLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 z-10">
+                  <Loader2 className="w-12 h-12 animate-spin text-newera-pink mb-3" />
+                  <p className="text-gray-400">جاري إنشاء الصورة...</p>
+                  <p className="text-xs text-gray-500 mt-1">قد يستغرق 30 ثانية</p>
+                </div>
+              )}
+              
               <img
                 src={currentImage.url}
                 alt={currentImage.prompt}
                 className="w-full h-auto"
+                onLoad={handleImageLoad}
+                onError={handleImageError}
               />
             </div>
 
