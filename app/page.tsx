@@ -38,7 +38,7 @@ export default function Home() {
       title: "Image Studio",
       description: "إنشاء صور إبداعية بالذكاء الاصطناعي",
       href: "/image",
-      available: false,
+      available: true,
       color: "from-purple-500 to-pink-500",
     },
     {
