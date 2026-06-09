@@ -23,6 +23,7 @@ interface GeneratedImage {
   style: string;
   size: string;
   status: "loading" | "success" | "error";
+  provider?: string;
 }
 
 const STYLES = [
@@ -77,7 +78,7 @@ export default function ImagePage() {
           height: selectedSize.height,
         },
         {
-          timeout: 120000, // 2 minutes
+          timeout: 180000, // 3 minutes
         }
       );
 
@@ -95,6 +96,7 @@ export default function ImagePage() {
         style: selectedStyle.name,
         size: selectedSize.id,
         status: "success",
+        provider: data.provider,
       };
 
       setCurrentImage(newImage);
@@ -108,14 +110,21 @@ export default function ImagePage() {
       let errorMessage = "حدث خطأ، حاول مرة أخرى";
       
       if (error.code === "ECONNABORTED") {
-        errorMessage = "⏱️ استغرق وقت طويل، جرب مرة أخرى";
+        errorMessage = "⏱️ استغرق وقت طويل، حاول مرة أخرى";
       } else if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
+        const detail = error.response.data.detail;
+        if (typeof detail === "string") {
+          errorMessage = detail;
+        } else {
+          errorMessage = "حدث خطأ في الخادم";
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
       toast.error(errorMessage, { 
         id: loadingToast,
-        duration: 4000 
+        duration: 5000 
       });
     } finally {
       setIsGenerating(false);
@@ -126,6 +135,20 @@ export default function ImagePage() {
     const downloadToast = toast.loading("جاري التحميل...");
 
     try {
+      // إذا الصورة base64
+      if (image.url.startsWith("data:image")) {
+        const link = document.createElement("a");
+        link.href = image.url;
+        link.download = `newera-${image.id}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.success("📥 تم التحميل!", { id: downloadToast });
+        return;
+      }
+
+      // إذا الصورة URL عادي
       const response = await fetch(image.url);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -255,6 +278,12 @@ export default function ImagePage() {
               </>
             )}
           </button>
+
+          {isGenerating && (
+            <p className="mt-3 text-sm text-yellow-400 text-center">
+              ⏳ قد يستغرق حتى دقيقة لأول مرة (تحميل النموذج)
+            </p>
+          )}
         </div>
 
         {/* Current Image */}
@@ -265,6 +294,11 @@ export default function ImagePage() {
                 <div className="flex items-center gap-3">
                   <CheckCircle2 className="w-5 h-5 text-green-400" />
                   <h2 className="text-xl font-bold">تمت بنجاح ✨</h2>
+                  {currentImage.provider && (
+                    <span className="text-xs px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full">
+                      {currentImage.provider}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
