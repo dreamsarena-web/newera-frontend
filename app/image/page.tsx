@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Wand2, Loader2, Download, Sparkles, Image as ImageIcon, RefreshCw } from "lucide-react";
+import { useState, useCallback } from "react";
+import { 
+  Wand2, 
+  Loader2, 
+  Download, 
+  Sparkles, 
+  Image as ImageIcon, 
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2
+} from "lucide-react";
 import toast from "react-hot-toast";
 import Header from "../components/Header";
 
@@ -10,117 +19,194 @@ interface GeneratedImage {
   prompt: string;
   url: string;
   timestamp: number;
+  style: string;
+  size: string;
+  status: "loading" | "success" | "error";
 }
+
+const STYLES = [
+  { id: "realistic", name: "واقعي", emoji: "📸", prompt: "ultra realistic, 8k uhd, professional photography, highly detailed, sharp focus" },
+  { id: "anime", name: "أنمي", emoji: "🎌", prompt: "anime style, manga art, vibrant colors, studio ghibli inspired" },
+  { id: "3d", name: "ثلاثي الأبعاد", emoji: "🎮", prompt: "3d render, octane render, cinematic lighting, unreal engine 5" },
+  { id: "painting", name: "رسم زيتي", emoji: "🎨", prompt: "oil painting, classical art style, detailed brushstrokes, masterpiece" },
+  { id: "cartoon", name: "كرتون", emoji: "🦸", prompt: "cartoon style, disney pixar animation, colorful, family friendly" },
+  { id: "cyberpunk", name: "سايبر بانك", emoji: "🌃", prompt: "cyberpunk style, neon lights, futuristic city, blade runner aesthetic" },
+];
+
+const SIZES = [
+  { id: "512x512", name: "مربع صغير", width: 512, height: 512 },
+  { id: "1024x1024", name: "مربع كبير", width: 1024, height: 1024 },
+  { id: "1024x768", name: "أفقي", width: 1024, height: 768 },
+  { id: "768x1024", name: "عمودي", width: 768, height: 1024 },
+];
 
 export default function ImagePage() {
   const [prompt, setPrompt] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [currentImage, setCurrentImage] = useState<GeneratedImage | null>(null);
   const [history, setHistory] = useState<GeneratedImage[]>([]);
-  const [style, setStyle] = useState("realistic");
-  const [size, setSize] = useState("1024x1024");
-  const [imageLoading, setImageLoading] = useState(false);
+  const [selectedStyle, setSelectedStyle] = useState(STYLES[0]);
+  const [selectedSize, setSelectedSize] = useState(SIZES[1]);
 
-  const styles = [
-    { id: "realistic", name: "واقعي", emoji: "📸" },
-    { id: "anime", name: "أنمي", emoji: "🎌" },
-    { id: "3d", name: "ثلاثي الأبعاد", emoji: "🎮" },
-    { id: "painting", name: "رسم زيتي", emoji: "🎨" },
-    { id: "cartoon", name: "كرتون", emoji: "🦸" },
-    { id: "cyberpunk", name: "سايبر بانك", emoji: "🌃" },
-  ];
+  const buildEnhancedPrompt = useCallback((userPrompt: string, style: typeof STYLES[0]) => {
+    const cleanPrompt = userPrompt.trim();
+    return `${cleanPrompt}, ${style.prompt}, high quality, masterpiece`;
+  }, []);
 
-  const sizes = [
-    { id: "512x512", name: "مربع صغير" },
-    { id: "1024x1024", name: "مربع كبير" },
-    { id: "1024x768", name: "أفقي" },
-    { id: "768x1024", name: "عمودي" },
-  ];
+  const generateImageUrl = useCallback((
+    enhancedPrompt: string, 
+    width: number, 
+    height: number,
+    seed: number
+  ) => {
+    const encodedPrompt = encodeURIComponent(enhancedPrompt);
+    const params = new URLSearchParams({
+      width: width.toString(),
+      height: height.toString(),
+      seed: seed.toString(),
+      nologo: "true",
+      enhance: "true",
+      model: "flux",
+    });
+    
+    return `https://image.pollinations.ai/prompt/${encodedPrompt}?${params.toString()}`;
+  }, []);
 
-  const buildPrompt = () => {
-    const stylePrompts: Record<string, string> = {
-      realistic: "ultra realistic, 4k, photography, detailed",
-      anime: "anime style, manga, vibrant colors",
-      "3d": "3d render, octane render, cinematic",
-      painting: "oil painting, classical art, detailed brushstrokes",
-      cartoon: "cartoon style, disney pixar style",
-      cyberpunk: "cyberpunk, neon lights, futuristic, dark",
-    };
+  const handleGenerate = useCallback(async () => {
+    const trimmedPrompt = prompt.trim();
+    
+    if (!trimmedPrompt) {
+      toast.error("الرجاء كتابة وصف الصورة");
+      return;
+    }
 
-    return `${prompt}, ${stylePrompts[style]}`;
-  };
+    if (trimmedPrompt.length < 3) {
+      toast.error("الوصف قصير جداً، اكتب وصف أوضح");
+      return;
+    }
 
-  const handleGenerate = () => {
-    if (!prompt.trim() || isLoading) return;
+    if (isGenerating) return;
 
-    setIsLoading(true);
-    setImageLoading(true);
+    setIsGenerating(true);
+    
+    const loadingToast = toast.loading("🎨 جاري إنشاء الصورة...", {
+      duration: Infinity,
+    });
 
     try {
-      const fullPrompt = buildPrompt();
-      const [width, height] = size.split("x");
+      const enhancedPrompt = buildEnhancedPrompt(trimmedPrompt, selectedStyle);
       const seed = Math.floor(Math.random() * 1000000);
-      
-      // Pollinations AI URL
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-        fullPrompt
-      )}?width=${width}&height=${height}&seed=${seed}&nologo=true&enhance=true&model=flux`;
+      const imageUrl = generateImageUrl(
+        enhancedPrompt, 
+        selectedSize.width, 
+        selectedSize.height,
+        seed
+      );
 
       const newImage: GeneratedImage = {
-        id: Date.now().toString(),
-        prompt: prompt,
+        id: `img_${Date.now()}_${seed}`,
+        prompt: trimmedPrompt,
         url: imageUrl,
         timestamp: Date.now(),
+        style: selectedStyle.name,
+        size: selectedSize.id,
+        status: "loading",
       };
 
       setCurrentImage(newImage);
-      setHistory((prev) => [newImage, ...prev].slice(0, 12));
+
+      // Preload the image with timeout
+      const img = new window.Image();
       
-      toast.success("🎨 جاري إنشاء الصورة...");
-    } catch (error) {
-      toast.error("حدث خطأ، حاول مرة أخرى");
-      console.error(error);
-      setIsLoading(false);
-      setImageLoading(false);
+      const loadPromise = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("timeout"));
+        }, 60000); // 60 seconds timeout
+
+        img.onload = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+
+        img.onerror = () => {
+          clearTimeout(timeout);
+          reject(new Error("load_error"));
+        };
+
+        img.src = imageUrl;
+      });
+
+      await loadPromise;
+
+      // Success
+      const successImage = { ...newImage, status: "success" as const };
+      setCurrentImage(successImage);
+      setHistory((prev) => [successImage, ...prev].slice(0, 20));
+      
+      toast.success("✨ تم إنشاء الصورة بنجاح!", { id: loadingToast });
+
+    } catch (error: any) {
+      console.error("Image generation error:", error);
+      
+      if (error.message === "timeout") {
+        toast.error("⏱️ استغرق وقت طويل، جرب مرة أخرى", { 
+          id: loadingToast,
+          duration: 4000 
+        });
+      } else {
+        toast.error("❌ فشل توليد الصورة، جرب وصف آخر", { 
+          id: loadingToast,
+          duration: 4000 
+        });
+      }
+
+      if (currentImage) {
+        setCurrentImage({ ...currentImage, status: "error" });
+      }
+    } finally {
+      setIsGenerating(false);
     }
-  };
+  }, [prompt, selectedStyle, selectedSize, isGenerating, buildEnhancedPrompt, generateImageUrl, currentImage]);
 
-  const handleImageLoad = () => {
-    setIsLoading(false);
-    setImageLoading(false);
-    toast.success("✨ تم إنشاء الصورة!");
-  };
+  const handleDownload = useCallback(async (image: GeneratedImage) => {
+    const downloadToast = toast.loading("جاري التحميل...");
 
-  const handleImageError = () => {
-    setIsLoading(false);
-    setImageLoading(false);
-    toast.error("فشل تحميل الصورة، حاول مرة أخرى");
-  };
-
-  const handleDownload = async (image: GeneratedImage) => {
     try {
-      toast.loading("جاري التحميل...", { id: "download" });
+      const response = await fetch(image.url, {
+        mode: "cors",
+      });
       
-      const response = await fetch(image.url);
+      if (!response.ok) {
+        throw new Error("Download failed");
+      }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `newera-${image.id}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `newera-${image.id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
       window.URL.revokeObjectURL(url);
       
-      toast.success("📥 تم تحميل الصورة!", { id: "download" });
+      toast.success("📥 تم التحميل!", { id: downloadToast });
     } catch (error) {
-      toast.error("فشل التحميل", { id: "download" });
+      // Fallback: open in new tab
+      window.open(image.url, "_blank");
+      toast.success("افتح الصورة واحفظها يدوياً", { id: downloadToast });
     }
-  };
+  }, []);
 
-  const handleRegenerate = () => {
-    handleGenerate();
-  };
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      handleGenerate();
+    }
+  }, [handleGenerate]);
+
+  const isReady = prompt.trim().length >= 3 && !isGenerating;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
@@ -144,62 +230,69 @@ export default function ImagePage() {
 
         {/* Input Section */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
-          <label className="block text-sm font-bold text-gray-300 mb-3">
-            صف الصورة اللي تريدها:
-          </label>
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-bold text-gray-300">
+              صف الصورة اللي تريدها:
+            </label>
+            <span className="text-xs text-gray-500">
+              {prompt.length} حرف
+            </span>
+          </div>
 
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="مثال: قطة لطيفة تجلس على سطح القمر مع نجوم متلألئة"
-            disabled={isLoading}
+            onKeyDown={handleKeyPress}
+            placeholder="مثال: قطة لطيفة تجلس على سطح القمر مع نجوم متلألئة في السماء"
+            disabled={isGenerating}
             rows={3}
+            maxLength={500}
             className="w-full bg-gray-900/50 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-newera-pink transition-colors resize-none disabled:opacity-50 text-lg"
           />
 
           {/* Styles */}
-          <div className="mt-4">
-            <label className="block text-sm font-bold text-gray-300 mb-2">
-              الستايل:
+          <div className="mt-5">
+            <label className="block text-sm font-bold text-gray-300 mb-3">
+              اختر الستايل:
             </label>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-              {styles.map((s) => (
+              {STYLES.map((style) => (
                 <button
-                  key={s.id}
-                  onClick={() => setStyle(s.id)}
-                  disabled={isLoading}
+                  key={style.id}
+                  onClick={() => setSelectedStyle(style)}
+                  disabled={isGenerating}
                   className={`p-3 rounded-xl border transition-all ${
-                    style === s.id
-                      ? "bg-newera-gradient border-transparent text-white"
-                      : "bg-white/5 border-white/10 hover:border-white/20"
-                  }`}
+                    selectedStyle.id === style.id
+                      ? "bg-newera-gradient border-transparent text-white scale-105"
+                      : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  <div className="text-2xl mb-1">{s.emoji}</div>
-                  <div className="text-xs font-bold">{s.name}</div>
+                  <div className="text-2xl mb-1">{style.emoji}</div>
+                  <div className="text-xs font-bold">{style.name}</div>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Sizes */}
-          <div className="mt-4">
-            <label className="block text-sm font-bold text-gray-300 mb-2">
-              الحجم:
+          <div className="mt-5">
+            <label className="block text-sm font-bold text-gray-300 mb-3">
+              اختر الحجم:
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {sizes.map((s) => (
+              {SIZES.map((size) => (
                 <button
-                  key={s.id}
-                  onClick={() => setSize(s.id)}
-                  disabled={isLoading}
+                  key={size.id}
+                  onClick={() => setSelectedSize(size)}
+                  disabled={isGenerating}
                   className={`p-3 rounded-xl border transition-all text-sm ${
-                    size === s.id
-                      ? "bg-newera-gradient border-transparent text-white font-bold"
-                      : "bg-white/5 border-white/10 hover:border-white/20"
-                  }`}
+                    selectedSize.id === size.id
+                      ? "bg-newera-gradient border-transparent text-white font-bold scale-105"
+                      : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  {s.name}
-                  <div className="text-xs opacity-70">{s.id}</div>
+                  <div>{size.name}</div>
+                  <div className="text-xs opacity-70 mt-1">{size.id}</div>
                 </button>
               ))}
             </div>
@@ -208,13 +301,13 @@ export default function ImagePage() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isLoading || !prompt.trim()}
-            className="mt-6 w-full px-6 py-4 bg-newera-gradient rounded-xl font-bold text-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+            disabled={!isReady}
+            className="mt-6 w-full px-6 py-4 bg-newera-gradient rounded-xl font-bold text-lg hover:scale-[1.02] active:scale-100 transition-transform disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20"
           >
-            {isLoading ? (
+            {isGenerating ? (
               <>
                 <Loader2 className="w-6 h-6 animate-spin" />
-                جاري الإنشاء... (15-30 ثانية)
+                جاري الإنشاء...
               </>
             ) : (
               <>
@@ -223,58 +316,107 @@ export default function ImagePage() {
               </>
             )}
           </button>
+
+          {!isGenerating && prompt.length > 0 && prompt.length < 3 && (
+            <p className="mt-3 text-sm text-yellow-400 text-center">
+              ⚠️ اكتب وصف أطول (3 أحرف على الأقل)
+            </p>
+          )}
         </div>
 
         {/* Current Image */}
         {currentImage && (
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">آخر صورة 🎨</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleRegenerate}
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-2 text-sm"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  إعادة توليد
-                </button>
-                <button
-                  onClick={() => handleDownload(currentImage)}
-                  className="px-4 py-2 bg-newera-gradient rounded-lg font-bold flex items-center gap-2 text-sm hover:scale-105 transition-transform"
-                >
-                  <Download className="w-4 h-4" />
-                  تحميل
-                </button>
+          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-8">
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  {currentImage.status === "success" && (
+                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  )}
+                  {currentImage.status === "loading" && (
+                    <Loader2 className="w-5 h-5 animate-spin text-newera-pink" />
+                  )}
+                  {currentImage.status === "error" && (
+                    <AlertCircle className="w-5 h-5 text-red-400" />
+                  )}
+                  <h2 className="text-xl font-bold">
+                    {currentImage.status === "success" && "تمت بنجاح ✨"}
+                    {currentImage.status === "loading" && "جاري الإنشاء..."}
+                    {currentImage.status === "error" && "فشل التحميل"}
+                  </h2>
+                </div>
+
+                {currentImage.status === "success" && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                      className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      توليد جديد
+                    </button>
+                    <button
+                      onClick={() => handleDownload(currentImage)}
+                      className="px-4 py-2 bg-newera-gradient rounded-lg font-bold flex items-center gap-2 text-sm hover:scale-105 transition-transform"
+                    >
+                      <Download className="w-4 h-4" />
+                      تحميل
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="relative rounded-xl overflow-hidden bg-gray-900 min-h-[400px] flex items-center justify-center">
-              {imageLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 z-10">
-                  <Loader2 className="w-12 h-12 animate-spin text-newera-pink mb-3" />
-                  <p className="text-gray-400">جاري إنشاء الصورة...</p>
-                  <p className="text-xs text-gray-500 mt-1">قد يستغرق 30 ثانية</p>
+            <div className="relative bg-gray-900 min-h-[400px] flex items-center justify-center">
+              {currentImage.status === "loading" && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-gray-900/95">
+                  <div className="relative">
+                    <div className="w-20 h-20 rounded-full bg-newera-gradient animate-pulse opacity-50" />
+                    <Loader2 className="w-12 h-12 animate-spin text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  </div>
+                  <p className="text-gray-300 font-bold mt-4">جاري إنشاء الصورة...</p>
+                  <p className="text-xs text-gray-500 mt-1">قد يستغرق 15-60 ثانية</p>
                 </div>
               )}
-              
-              <img
-                src={currentImage.url}
-                alt={currentImage.prompt}
-                className="w-full h-auto"
-                onLoad={handleImageLoad}
-                onError={handleImageError}
-              />
+
+              {currentImage.status === "error" && (
+                <div className="text-center p-8">
+                  <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-3" />
+                  <p className="text-gray-400 mb-4">فشل تحميل الصورة</p>
+                  <button
+                    onClick={handleGenerate}
+                    className="px-6 py-3 bg-newera-gradient rounded-lg font-bold"
+                  >
+                    إعادة المحاولة
+                  </button>
+                </div>
+              )}
+
+              {currentImage.status !== "error" && (
+                <img
+                  src={currentImage.url}
+                  alt={currentImage.prompt}
+                  className="w-full h-auto"
+                  style={{ display: currentImage.status === "success" ? "block" : "none" }}
+                />
+              )}
             </div>
 
-            <p className="mt-4 text-gray-400 text-sm">
-              <span className="font-bold">الوصف:</span> {currentImage.prompt}
-            </p>
+            <div className="p-6 space-y-2">
+              <p className="text-gray-400 text-sm">
+                <span className="font-bold text-gray-300">الوصف:</span> {currentImage.prompt}
+              </p>
+              <div className="flex gap-4 text-xs text-gray-500">
+                <span>🎨 {currentImage.style}</span>
+                <span>📐 {currentImage.size}</span>
+              </div>
+            </div>
           </div>
         )}
 
         {/* History Gallery */}
-        {history.length > 1 && (
+        {history.length > 0 && (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
               <ImageIcon className="w-5 h-5" />
@@ -282,31 +424,35 @@ export default function ImagePage() {
             </h2>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {history.slice(1).map((image) => (
+              {history.map((image) => (
                 <div
                   key={image.id}
-                  className="group relative rounded-xl overflow-hidden bg-gray-900 cursor-pointer hover:scale-105 transition-transform"
+                  className="group relative rounded-xl overflow-hidden bg-gray-900 cursor-pointer hover:scale-105 transition-transform aspect-square"
                   onClick={() => setCurrentImage(image)}
                 >
                   <img
                     src={image.url}
                     alt={image.prompt}
-                    className="w-full h-full object-cover aspect-square"
+                    className="w-full h-full object-cover"
+                    loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
-                    <p className="text-xs text-white line-clamp-2">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                    <p className="text-xs text-white line-clamp-2 mb-2">
                       {image.prompt}
                     </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload(image);
+                        }}
+                        className="flex-1 p-2 bg-white/20 backdrop-blur rounded-lg hover:bg-white/30 transition-colors flex items-center justify-center gap-1 text-xs"
+                      >
+                        <Download className="w-3 h-3" />
+                        تحميل
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownload(image);
-                    }}
-                    className="absolute top-2 left-2 p-2 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
             </div>
@@ -314,16 +460,16 @@ export default function ImagePage() {
         )}
 
         {/* Empty State */}
-        {!currentImage && !isLoading && (
+        {!currentImage && (
           <div className="text-center py-16">
-            <div className="inline-block p-6 bg-newera-gradient rounded-full mb-4 opacity-50">
+            <div className="inline-block p-6 bg-newera-gradient rounded-full mb-4 opacity-30">
               <ImageIcon className="w-12 h-12 text-white" />
             </div>
             <h3 className="text-xl font-bold text-gray-400 mb-2">
-              لا توجد صور بعد
+              ابدأ بإنشاء صورتك الأولى
             </h3>
             <p className="text-gray-500">
-              اكتب وصف الصورة اللي تريدها واضغط "إنشاء"
+              اكتب وصف واختر ستايل وحجم، ثم اضغط إنشاء
             </p>
           </div>
         )}
