@@ -51,6 +51,7 @@ export default function ImagePage() {
   const [history, setHistory] = useState<GeneratedImage[]>([]);
   const [selectedStyle, setSelectedStyle] = useState(STYLES[0]);
   const [selectedSize, setSelectedSize] = useState(SIZES[1]);
+  const [imageLoading, setImageLoading] = useState(false);
 
   const handleGenerate = useCallback(async () => {
     const trimmedPrompt = prompt.trim();
@@ -63,6 +64,7 @@ export default function ImagePage() {
     if (isGenerating) return;
 
     setIsGenerating(true);
+    setImageLoading(true);
     
     const loadingToast = toast.loading("🎨 جاري إنشاء الصورة...", {
       duration: Infinity,
@@ -78,7 +80,7 @@ export default function ImagePage() {
           height: selectedSize.height,
         },
         {
-          timeout: 180000, // 3 minutes
+          timeout: 30000, // 30 seconds
         }
       );
 
@@ -102,10 +104,14 @@ export default function ImagePage() {
       setCurrentImage(newImage);
       setHistory((prev) => [newImage, ...prev].slice(0, 20));
       
-      toast.success("✨ تم إنشاء الصورة بنجاح!", { id: loadingToast });
+      toast.success("✨ جاري تحميل الصورة... (15-30 ثانية)", { 
+        id: loadingToast,
+        duration: 5000
+      });
 
     } catch (error: any) {
       console.error("Image generation error:", error);
+      setImageLoading(false);
       
       let errorMessage = "حدث خطأ، حاول مرة أخرى";
       
@@ -131,11 +137,20 @@ export default function ImagePage() {
     }
   }, [prompt, selectedStyle, selectedSize, isGenerating]);
 
+  const handleImageLoad = () => {
+    setImageLoading(false);
+    toast.success("✅ الصورة جاهزة!", { duration: 2000 });
+  };
+
+  const handleImageError = () => {
+    setImageLoading(false);
+    toast.error("فشل تحميل الصورة، حاول مرة أخرى");
+  };
+
   const handleDownload = useCallback(async (image: GeneratedImage) => {
     const downloadToast = toast.loading("جاري التحميل...");
 
     try {
-      // إذا الصورة base64
       if (image.url.startsWith("data:image")) {
         const link = document.createElement("a");
         link.href = image.url;
@@ -148,7 +163,6 @@ export default function ImagePage() {
         return;
       }
 
-      // إذا الصورة URL عادي
       const response = await fetch(image.url);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -278,12 +292,6 @@ export default function ImagePage() {
               </>
             )}
           </button>
-
-          {isGenerating && (
-            <p className="mt-3 text-sm text-yellow-400 text-center">
-              ⏳ قد يستغرق حتى دقيقة لأول مرة (تحميل النموذج)
-            </p>
-          )}
         </div>
 
         {/* Current Image */}
@@ -292,8 +300,14 @@ export default function ImagePage() {
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-400" />
-                  <h2 className="text-xl font-bold">تمت بنجاح ✨</h2>
+                  {imageLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-newera-pink" />
+                  ) : (
+                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  )}
+                  <h2 className="text-xl font-bold">
+                    {imageLoading ? "جاري التحميل..." : "تمت بنجاح ✨"}
+                  </h2>
                   {currentImage.provider && (
                     <span className="text-xs px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full">
                       {currentImage.provider}
@@ -312,7 +326,8 @@ export default function ImagePage() {
                   </button>
                   <button
                     onClick={() => handleDownload(currentImage)}
-                    className="px-4 py-2 bg-newera-gradient rounded-lg font-bold flex items-center gap-2 text-sm hover:scale-105 transition-transform"
+                    disabled={imageLoading}
+                    className="px-4 py-2 bg-newera-gradient rounded-lg font-bold flex items-center gap-2 text-sm hover:scale-105 transition-transform disabled:opacity-50"
                   >
                     <Download className="w-4 h-4" />
                     تحميل
@@ -321,11 +336,25 @@ export default function ImagePage() {
               </div>
             </div>
 
-            <div className="bg-gray-900">
+            <div className="bg-gray-900 relative min-h-[400px] flex items-center justify-center">
+              {imageLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-gray-900/90">
+                  <div className="relative mb-4">
+                    <div className="w-20 h-20 rounded-full bg-newera-gradient animate-pulse opacity-50" />
+                    <Loader2 className="w-12 h-12 animate-spin text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  </div>
+                  <p className="text-gray-300 font-bold">جاري إنشاء الصورة...</p>
+                  <p className="text-xs text-gray-500 mt-1">قد يستغرق 15-30 ثانية</p>
+                </div>
+              )}
+              
               <img
                 src={currentImage.url}
                 alt={currentImage.prompt}
                 className="w-full h-auto"
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                style={{ display: imageLoading ? "none" : "block" }}
               />
             </div>
 
@@ -354,7 +383,10 @@ export default function ImagePage() {
                 <div
                   key={image.id}
                   className="group relative rounded-xl overflow-hidden bg-gray-900 cursor-pointer hover:scale-105 transition-transform aspect-square"
-                  onClick={() => setCurrentImage(image)}
+                  onClick={() => {
+                    setCurrentImage(image);
+                    setImageLoading(false);
+                  }}
                 >
                   <img
                     src={image.url}
