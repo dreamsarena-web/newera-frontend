@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Sparkles, MessageCircle, Swords, Home, User, LogOut, LogIn, Image as ImageIcon } from "lucide-react";
+import { 
+  Sparkles, 
+  MessageCircle, 
+  Swords, 
+  Home, 
+  User, 
+  LogOut, 
+  LogIn,
+  Image as ImageIcon 
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
@@ -30,7 +39,12 @@ export default function Header() {
           </Link>
 
           {/* Navigation */}
-          import { Sparkles, MessageCircle, Swords, Home, User, LogOut, LogIn, Image as ImageIcon } from "lucide-react";
+          <nav className="flex items-center gap-1 flex-1 justify-center">
+            <NavLink href="/" icon={Home} label="الرئيسية" />
+            <NavLink href="/chat" icon={MessageCircle} label="Chat" />
+            <NavLink href="/battle" icon={Swords} label="Battle" />
+            <NavLink href="/image" icon={ImageIcon} label="Image" />
+          </nav>
 
           {/* Auth Section */}
           <div className="flex items-center gap-2 flex-shrink-0">
