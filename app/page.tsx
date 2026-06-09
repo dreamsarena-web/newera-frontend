@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { MessageCircle, Swords, Code, Image, Smartphone, Video, Sparkles, Zap } from "lucide-react";
+import { MessageCircle, Swords, Code, Image, Smartphone, Video, Sparkles, Zap, User } from "lucide-react";
+import Header from "./components/Header";
+import { useAuth } from "./context/AuthContext";
 
 export default function Home() {
+  const { user, isLoading } = useAuth();
+
   const features = [
     {
       icon: MessageCircle,
@@ -57,15 +61,27 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+      <Header />
+
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-pink-500/10 to-purple-500/10" />
         
         <div className="relative container mx-auto px-4 py-20 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 mb-8">
-            <Sparkles className="w-4 h-4 text-newera-orange" />
-            <span className="text-sm text-gray-300">عصر جديد للذكاء الاصطناعي</span>
-          </div>
+          {/* Welcome Badge */}
+          {!isLoading && user ? (
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-newera-gradient mb-8">
+              <User className="w-4 h-4 text-white" />
+              <span className="text-sm text-white font-bold">
+                أهلاً، {user.full_name || user.username}! 👋
+              </span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 mb-8">
+              <Sparkles className="w-4 h-4 text-newera-orange" />
+              <span className="text-sm text-gray-300">عصر جديد للذكاء الاصطناعي</span>
+            </div>
+          )}
 
           <h1 className="text-6xl md:text-8xl font-black mb-6">
             <span className="text-gradient">NewEra</span>
@@ -73,25 +89,71 @@ export default function Home() {
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-400 mb-12 max-w-2xl mx-auto">
-            منصة شاملة تجمع أقوى نماذج الذكاء الاصطناعي في مكان واحد
+            {user 
+              ? "اختر الأداة اللي تريد تستخدمها"
+              : "منصة شاملة تجمع أقوى نماذج الذكاء الاصطناعي في مكان واحد"
+            }
           </p>
 
           <div className="flex flex-wrap gap-4 justify-center">
-            <Link
-              href="/chat"
-              className="group px-8 py-4 bg-newera-gradient rounded-xl font-bold text-white hover:scale-105 transition-all duration-300 flex items-center gap-2"
-            >
-              <Zap className="w-5 h-5" />
-              ابدأ الآن
-            </Link>
+            {!isLoading && user ? (
+              // إذا مسجل دخول
+              <>
+                <Link
+                  href="/chat"
+                  className="group px-8 py-4 bg-newera-gradient rounded-xl font-bold text-white hover:scale-105 transition-all duration-300 flex items-center gap-2"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  ابدأ المحادثة
+                </Link>
 
-            <Link
-              href="/login"
-              className="px-8 py-4 bg-white/5 border border-white/10 rounded-xl font-bold text-white hover:bg-white/10 transition-all duration-300"
-            >
-              تسجيل الدخول
-            </Link>
+                <Link
+                  href="/battle"
+                  className="px-8 py-4 bg-white/5 border border-white/10 rounded-xl font-bold text-white hover:bg-white/10 transition-all duration-300 flex items-center gap-2"
+                >
+                  <Swords className="w-5 h-5" />
+                  ابدأ معركة
+                </Link>
+              </>
+            ) : (
+              // إذا غير مسجل
+              <>
+                <Link
+                  href="/register"
+                  className="group px-8 py-4 bg-newera-gradient rounded-xl font-bold text-white hover:scale-105 transition-all duration-300 flex items-center gap-2"
+                >
+                  <Zap className="w-5 h-5" />
+                  ابدأ الآن مجاناً
+                </Link>
+
+                <Link
+                  href="/login"
+                  className="px-8 py-4 bg-white/5 border border-white/10 rounded-xl font-bold text-white hover:bg-white/10 transition-all duration-300"
+                >
+                  تسجيل الدخول
+                </Link>
+              </>
+            )}
           </div>
+
+          {/* Stats للمستخدم المسجل */}
+          {!isLoading && user && (
+            <div className="mt-12 inline-flex items-center gap-6 px-6 py-3 bg-white/5 border border-white/10 rounded-2xl">
+              <div className="text-center">
+                <div className="text-xs text-gray-400 mb-1">الباقة</div>
+                <div className="text-sm font-bold text-newera-pink uppercase">
+                  {user.subscription_tier || "Free"}
+                </div>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <div className="text-center">
+                <div className="text-xs text-gray-400 mb-1">الحالة</div>
+                <div className="text-sm font-bold text-green-400">
+                  ✓ نشط
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -112,6 +174,27 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* CTA Section للزوار غير المسجلين */}
+      {!isLoading && !user && (
+        <section className="container mx-auto px-4 py-20">
+          <div className="bg-newera-gradient rounded-3xl p-12 text-center">
+            <h2 className="text-4xl font-black mb-4 text-white">
+              جاهز للبدء؟ 🚀
+            </h2>
+            <p className="text-white/90 text-lg mb-8 max-w-2xl mx-auto">
+              أنشئ حسابك المجاني الآن واستمتع بكل الميزات
+            </p>
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-gray-900 rounded-xl font-black text-lg hover:scale-105 transition-transform"
+            >
+              <Sparkles className="w-5 h-5" />
+              إنشاء حساب مجاني
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-8">
